@@ -9,7 +9,7 @@ def read_root():
     return {"status": "ok", "service": "Edge TTS for SF Bot"}
 
 @app.get("/tts")
-async def generate_tts(text: str, voice: str = "ru-RU-DmitryNeural", pitch: str = "-10Hz"):
+async def generate_tts(text: str, voice: str = "ru-RU-DmitryNeural", pitch: str = "-80Hz"):
     try:
         # Формируем генератор речи с заниженным тоном (pitch) для Эсефе
         communicate = edge_tts.Communicate(text, voice, pitch=pitch)
