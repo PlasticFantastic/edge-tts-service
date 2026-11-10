@@ -1,3 +1,4 @@
+import asyncio
 from fastapi import FastAPI, Response
 from fastapi.responses import JSONResponse
 import edge_tts
@@ -5,7 +6,7 @@ import edge_tts
 app = FastAPI()
 
 DEFAULT_VOICE = "ru-RU-DmitryNeural"
-# От самого низкого тона к запасным вариантам; пустая строка = без изменения тона.
+# От самого низкого тона к запасным; "" = без изменения тона.
 PITCH_FALLBACKS = ["-55Hz", "-30Hz", "-15Hz", ""]
 
 
@@ -31,19 +32,24 @@ async def synthesize(text: str, voice: str, pitch: str) -> bytes:
 
 @app.get("/tts")
 async def generate_tts(text: str, voice: str = DEFAULT_VOICE, pitch: str = ""):
-    # Если pitch передан явно, пробуем его первым, дальше идём по запасным.
-    candidates = ([pitch] if pitch else []) + [p for p in PITCH_FALLBACKS if p != pitch]
+    candidates = []
+    for p in ([pitch] if pitch else []) + PITCH_FALLBACKS:
+        if p not in candidates:
+            candidates.append(p)
+
     last_error = ""
     for candidate in candidates:
-        try:
-            audio = await synthesize(text, voice, candidate)
-            return Response(
-                content=audio,
-                media_type="audio/mpeg",
-                headers={"X-Pitch-Used": candidate or "none"},
-            )
-        except Exception as e:
-            last_error = f"pitch={candidate or 'none'}: {e}"
-            print("tts attempt failed:", last_error, flush=True)
+        for attempt in (1, 2):
+            try:
+                audio = await synthesize(text, voice, candidate)
+                return Response(
+                    content=audio,
+                    media_type="audio/mpeg",
+                    headers={"X-Pitch-Used": candidate or "none"},
+                )
+            except Exception as e:
+                last_error = f"pitch={candidate or 'none'} try={attempt}: {e}"
+                print("tts attempt failed:", last_error, flush=True)
+                await asyncio.sleep(0.7)
 
     return JSONResponse(status_code=500, content={"error": last_error})
